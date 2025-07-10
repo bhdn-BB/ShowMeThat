@@ -11,7 +11,9 @@ def save_frames_from_video(
         video_url: str,
         frame_interval_sec: float | int
 ) -> None:
+
     print('Extracting video info...')
+
     try:
         youtube_dl_opts = {}
         with youtube_dl.YoutubeDL(youtube_dl_opts) as ydl:
@@ -37,7 +39,7 @@ def save_frames_from_video(
 
         total_frames = video_capture.get(cv2.CAP_PROP_FRAME_COUNT)
         fps = int(video_capture.get(cv2.CAP_PROP_FPS))
-        duration_ms = total_frames * (1/fps) * MS_IN_SECOND # in milliseconds
+        duration_ms = total_frames * MS_IN_SECOND / fps # in milliseconds
 
         current_time_ms = 0
         frame_index = 0
@@ -57,14 +59,14 @@ def save_frames_from_video(
             cv2.imwrite(
                 os.path.join(
                     OUTPUT_DIR,
-                    f"frame_{frame_index}_{video_url.split('=')[-1]}&t={round(current_time_ms/MS_IN_SECOND)}s.jpg"
+                    f"frame_{frame_index}_{video_url.split('=')[-1]}"
+                    f"&t={round(current_time_ms/MS_IN_SECOND)}s.jpg"
                 ),
                 current_frame
             )
             current_time_ms += frame_interval_sec * MS_IN_SECOND # in milliseconds
 
         video_capture.release()
-
         print(f'Extracted {frame_index} frames.')
 
     except Exception as e:
