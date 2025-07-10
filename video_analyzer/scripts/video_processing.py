@@ -52,7 +52,7 @@ def save_frames_from_video(
 
 
             if not read_success:
-                print(f'Failed to read frame №{frame_index + 1}.')
+                print(f'Failed to read frame.')
                 break
 
             frame_index += 1
