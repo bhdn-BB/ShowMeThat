@@ -13,7 +13,6 @@ def save_frames_from_video(
 ) -> None:
 
     print('Extracting video info...')
-
     try:
         youtube_dl_opts = {}
         with youtube_dl.YoutubeDL(youtube_dl_opts) as ydl:
