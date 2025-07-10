@@ -50,8 +50,9 @@ def save_frames_from_video(
             video_capture.set(cv2.CAP_PROP_POS_MSEC, current_time_ms)
             read_success, current_frame = video_capture.read()
 
+
             if not read_success:
-                print('Failed to read frame.')
+                print(f'Failed to read frame №{frame_index + 1}.')
                 break
 
             frame_index += 1
