@@ -1,24 +1,15 @@
-import logging
 import os
-from urllib.parse import urlparse, parse_qs
-
 import cv2
 import yt_dlp as youtube_dl
-
 from ShowMeThat.search_service.config_video_processing import ConfigVideoProcessing
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+logger = ConfigVideoProcessing.get_logger(__name__)
 
 def save_frames_from_video(
         video_url: str,
         frame_interval_sec: float | int,
         quality: str = ConfigVideoProcessing.TARGET_FORMAT_NOTE
 ) -> int | None:
-
     logger.info('Extracting video info...')
     try:
         youtube_dl_opts = {}
@@ -26,8 +17,8 @@ def save_frames_from_video(
             video_info = ydl.extract_info(video_url, download=False)
 
         video_id = video_info.get('id', 'unknown')
-
         formats = video_info.get('formats', None)
+
         if not formats:
             logger.warning('No video formats found.')
             return 0
