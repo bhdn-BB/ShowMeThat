@@ -1,7 +1,9 @@
 import os
+# import shutil
 import cv2
 import yt_dlp as youtube_dl
 from ShowMeThat.search_service.config_video_processing import ConfigVideoProcessing
+
 
 logger = ConfigVideoProcessing.get_logger(__name__)
 
@@ -10,6 +12,7 @@ def save_frames_from_video(
         frame_interval_sec: float | int,
         quality: str = ConfigVideoProcessing.TARGET_FORMAT_NOTE
 ) -> int | None:
+
     logger.info('Extracting video info...')
     try:
         youtube_dl_opts = {}
@@ -47,10 +50,11 @@ def save_frames_from_video(
         current_time_ms = 0
         frame_index = 0
 
-        if not os.path.exists(ConfigVideoProcessing.OUTPUT_DIR):
-            os.makedirs(ConfigVideoProcessing.OUTPUT_DIR)
+        # if os.path.exists(ConfigVideoProcessing.OUTPUT_DIR):
+        #     shutil.rmtree(ConfigVideoProcessing.OUTPUT_DIR)
+        # os.makedirs(ConfigVideoProcessing.OUTPUT_DIR)
 
-        while video_capture.isOpened() and current_time_ms < duration_ms:
+        while video_capture.isOpened() or current_time_ms < duration_ms:
 
             video_capture.set(cv2.CAP_PROP_POS_MSEC, current_time_ms)
             read_success, current_frame = video_capture.read()
@@ -95,8 +99,8 @@ def build_youtube_link_from_filename(filename: str) -> str | None:
         logger.debug(f'Attempted to parse filename: {filename}')
 
 
-if __name__ == '__main__':
-
-    # url = input('Enter video url:')
-    # save_frames_from_video(url, 2)
-    build_youtube_link_from_filename('frame_2_IHOGcqGqdIQ&t=2s.jpg')
+# if __name__ == '__main__':
+#
+#     url = input('Enter video url:')
+#     save_frames_from_video(url, 2)
+    # build_youtube_link_from_filename('frame_2_IHOGcqGqdIQ&t=2s.jpg')
