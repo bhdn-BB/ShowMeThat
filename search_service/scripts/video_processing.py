@@ -1,16 +1,15 @@
 import os
-# import shutil
 import cv2
 import yt_dlp as youtube_dl
-from ShowMeThat.search_service.config_video_processing import ConfigVideoProcessing
+from ..config_analyzer.config_analyzer import ConfigAnalyzer as Config
 
 
-logger = ConfigVideoProcessing.get_logger(__name__)
+logger = Config.get_logger(__name__)
 
 def save_frames_from_video(
         video_url: str,
         frame_interval_sec: float | int,
-        quality: str = ConfigVideoProcessing.TARGET_FORMAT_NOTE
+        quality: str = Config.TARGET_FORMAT_NOTE
 ) -> int | None:
 
     logger.info('Extracting video info...')
@@ -45,7 +44,7 @@ def save_frames_from_video(
 
         total_frames = video_capture.get(cv2.CAP_PROP_FRAME_COUNT)
         fps = int(video_capture.get(cv2.CAP_PROP_FPS))
-        duration_ms = total_frames * ConfigVideoProcessing.MS_IN_SECOND / fps # in milliseconds
+        duration_ms = total_frames * Config.MS_IN_SECOND / fps # in milliseconds
 
         current_time_ms = 0
         frame_index = 0
@@ -62,17 +61,17 @@ def save_frames_from_video(
 
             if not read_success or current_frame is None:
                 logger.warning(
-                    f'Failed to read frame at {current_time_ms / ConfigVideoProcessing.MS_IN_SECOND:.3f}s.'
+                    f'Failed to read frame at {current_time_ms / Config.MS_IN_SECOND:.3f}s.'
                 )
                 break
 
             frame_index += 1
 
-            filename = f"frame_{frame_index}_{video_id}&t={round(current_time_ms / ConfigVideoProcessing.MS_IN_SECOND)}s.jpg"
-            filepath = os.path.join(ConfigVideoProcessing.OUTPUT_DIR, filename)
+            filename = f"frame_{frame_index}_{video_id}&t={round(current_time_ms / Config.MS_IN_SECOND)}s.jpg"
+            filepath = os.path.join(Config.OUTPUT_DIR, filename)
             cv2.imwrite(filepath, current_frame)
 
-            current_time_ms += frame_interval_sec * ConfigVideoProcessing.MS_IN_SECOND # in milliseconds
+            current_time_ms += frame_interval_sec * Config.MS_IN_SECOND # in milliseconds
 
         video_capture.release()
         logger.info(f'Extracted {frame_index} frames.')

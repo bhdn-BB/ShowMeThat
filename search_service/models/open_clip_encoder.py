@@ -6,10 +6,11 @@ import torch
 from PIL import Image
 import open_clip
 from tqdm import tqdm
-from ShowMeThat.search_service.config_video_processing import ConfigVideoProcessing
-from ShowMeThat.search_service.scripts.video_processing import save_frames_from_video
+from ..config_analyzer.config_analyzer import ConfigAnalyzer as Config
+from ..scripts.video_processing import save_frames_from_video, build_youtube_link_from_filename
 
-logger = ConfigVideoProcessing.get_logger(__name__)
+
+logger = Config.get_logger(__name__)
 
 class OpenCLIPEncoder:
     def __init__(self, model_name='ViT-B-32', pretrained='laion2b_s34b_b79k'):
@@ -19,7 +20,7 @@ class OpenCLIPEncoder:
         self.tokenizer = open_clip.get_tokenizer(model_name)
         self.model.eval()
 
-    def encode_image(self, image_path):
+    def encode_image_path(self, image_path):
         image = self.preprocess(Image.open(image_path)).unsqueeze(0).to(self.device)
         with torch.no_grad(), torch.autocast(self.device.type):
             image_features = self.model.encode_image(image)
@@ -36,13 +37,13 @@ class OpenCLIPEncoder:
     def extract_and_encode_frames(
             self,
             video_urls: List[str],
-            frame_interval_sec: int =10
+            frame_interval_sec: int
     ) -> None:
 
-        if os.path.exists(ConfigVideoProcessing.OUTPUT_DIR):
-            shutil.rmtree(ConfigVideoProcessing.OUTPUT_DIR)
-        os.makedirs(ConfigVideoProcessing.OUTPUT_DIR)
-        logger.info(f'Created clean folder: {ConfigVideoProcessing.OUTPUT_DIR}')
+        if os.path.exists(Config.OUTPUT_DIR):
+            shutil.rmtree(Config.OUTPUT_DIR)
+        os.makedirs(Config.OUTPUT_DIR)
+        logger.info(f'Created clean folder: {Config.OUTPUT_DIR}')
 
         for video_url in video_urls:
             logger.info(f'Extracting frames from {video_url}')
@@ -51,10 +52,10 @@ class OpenCLIPEncoder:
         embedded_frames = []
 
         logger.info('Encoding extracted images into embeddings...')
-        for filename in tqdm(os.listdir(ConfigVideoProcessing.OUTPUT_DIR), desc="Encoding images"):
-            if filename.endswith(ConfigVideoProcessing.IMAGE_FORMATS):
-                image_path = os.path.join(ConfigVideoProcessing.OUTPUT_DIR, filename)
-                features = self.encode_image(image_path)
+        for filename in tqdm(os.listdir(Config.OUTPUT_DIR), desc="Encoding images"):
+            if filename.endswith(Config.IMAGE_FORMATS):
+                image_path = os.path.join(Config.OUTPUT_DIR, filename)
+                features = self.encode_image_path(image_path)
                 embedded_frames.append(features.cpu().numpy())
 
         if embedded_frames:
@@ -64,6 +65,43 @@ class OpenCLIPEncoder:
         else:
             logger.warning('No embeddings were generated.')
 
-    def predict(self, image_features, text_features):
+    @staticmethod
+    def predict(image_features, text_features):
         logits = (100.0 * image_features @ text_features.T).softmax(dim=-1)
         return logits
+
+    def get_best_images_by_score(
+            self,
+            image_file_paths: List[str],
+            prompt: str,
+            num_top_images: int
+    ) -> tuple[list[Image.Image], list[str | None]] | None:
+
+        if not image_file_paths:
+            logger.warning("Empty image file list.")
+            return None
+
+        image_features = torch.cat(
+            [self.encode_image_path(path) for path in image_file_paths], dim=0
+        )
+
+        text_features = self.encode_text([prompt])
+        relevance_probs = self.predict(image_features=image_features, text_features=text_features)[0]
+        top_indices = torch.argsort(relevance_probs, descending=True)[:num_top_images]
+
+        best_images = []
+        youtube_links = []
+
+        for idx in top_indices:
+            image_path = image_file_paths[idx]
+            try:
+                image = Image.open(image_path)
+                best_images.append(image)
+                filename = os.path.basename(image_path)
+                link = build_youtube_link_from_filename(filename)
+                youtube_links.append(link)
+            except Exception as e:
+                logger.warning(f"Failed to process image '{image_path}': {e}")
+            finally:
+                logger.info(f"Finished processing image: '{image_path}'")
+        return best_images, youtube_links
