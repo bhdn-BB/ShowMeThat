@@ -5,9 +5,10 @@ import numpy as np
 import torch
 from PIL import Image
 import open_clip
+from pydantic import HttpUrl
 from tqdm import tqdm
-from ..config.config_analyzer import ConfigAnalyzer as Config
-from ..scripts.video_processing import save_frames_from_video, build_youtube_link_from_filename
+from search_service.config import Config
+from search_service.scripts.video_processing import save_frames_from_video, build_youtube_link_from_filename
 
 
 logger = Config.get_logger(__name__)
@@ -36,7 +37,7 @@ class OpenCLIPEncoder:
 
     def extract_and_encode_frames(
             self,
-            video_urls: List[str],
+            video_urls: List[HttpUrl],
             frame_interval_sec: int
     ) -> None:
 

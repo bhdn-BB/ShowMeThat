@@ -1,7 +1,8 @@
-from .request import SearchRequest
+from .request import BaseSearchRequest, SearchByTextPrompt
 from .response import SearchResponse
 
 __all__ = [
-    'SearchRequest',
+    'BaseSearchRequest',
     'SearchResponse',
+    'SearchByTextPrompt',
 ]

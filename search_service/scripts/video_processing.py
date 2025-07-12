@@ -1,7 +1,7 @@
 import os
 import cv2
 import yt_dlp as youtube_dl
-from ..config.config_analyzer import ConfigAnalyzer as Config
+from search_service.config import Config
 
 
 logger = Config.get_logger(__name__)
