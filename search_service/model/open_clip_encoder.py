@@ -6,7 +6,7 @@ import torch
 from PIL import Image
 import open_clip
 from tqdm import tqdm
-from ..config_analyzer.config_analyzer import ConfigAnalyzer as Config
+from ..config.config_analyzer import ConfigAnalyzer as Config
 from ..scripts.video_processing import save_frames_from_video, build_youtube_link_from_filename
 
 

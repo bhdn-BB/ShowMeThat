@@ -1,7 +1,7 @@
 from fastapi import FastAPI
-from models import OpenCLIPEncoder
-from config_analyzer.config_analyzer import ConfigAnalyzer as Config
-from dto import SearchRequest, SearchResponse
+from model import OpenCLIPEncoder
+from config.py import Config
+from dto import SearchRequest, SearchByTextPrompt
 
 import os
 
@@ -30,8 +30,3 @@ def search_frames(request: SearchRequest):
     )
 
     return SearchResponse(video_fragments=youtube_links)
-
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run("app:app", host="127.0.0.1", port=8000, reload=True)
