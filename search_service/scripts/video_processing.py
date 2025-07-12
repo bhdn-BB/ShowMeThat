@@ -1,6 +1,8 @@
 import os
 import cv2
 import yt_dlp as youtube_dl
+from pydantic import HttpUrl
+
 from search_service.config import Config
 
 

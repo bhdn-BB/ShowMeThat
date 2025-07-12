@@ -21,15 +21,16 @@ class OpenCLIPEncoder:
         self.tokenizer = open_clip.get_tokenizer(model_name)
         self.model.eval()
 
-    def encode_image_path(self, image_path):
+    def encode_image_path(self, image_path: str) -> torch.Tensor:
         image = self.preprocess(Image.open(image_path)).unsqueeze(0).to(self.device)
-        with torch.no_grad(), torch.autocast(self.device.type):
+        with torch.no_grad(), torch.autocast(self.device.type, enabled=False):
             image_features = self.model.encode_image(image)
             image_features /= image_features.norm(dim=-1, keepdim=True)
         return image_features
 
-    def encode_text(self, texts):
-        tokens = self.tokenizer(texts).to(self.device)
+    def encode_text(self, text: str) -> torch.Tensor:
+        prompt = f"a photo of {text}"
+        tokens = self.tokenizer(prompt).to(self.device)
         with torch.no_grad(), torch.autocast(self.device.type):
             text_features = self.model.encode_text(tokens)
             text_features /= text_features.norm(dim=-1, keepdim=True)
@@ -37,7 +38,7 @@ class OpenCLIPEncoder:
 
     def extract_and_encode_frames(
             self,
-            video_urls: List[HttpUrl],
+            video_urls: List[HttpUrl] | HttpUrl,
             frame_interval_sec: int
     ) -> None:
 
@@ -46,9 +47,11 @@ class OpenCLIPEncoder:
         os.makedirs(Config.OUTPUT_DIR)
         logger.info(f'Created clean folder: {Config.OUTPUT_DIR}')
 
-        for video_url in video_urls:
-            logger.info(f'Extracting frames from {video_url}')
-            save_frames_from_video(video_url, frame_interval_sec)
+        video_urls = [str(url) for url in video_urls]
+
+        for url in video_urls:
+            logger.info(f"Saving frames from url: {url} (type {type(url)})")
+            save_frames_from_video(url, frame_interval_sec)
 
         embedded_frames = []
 
@@ -86,7 +89,7 @@ class OpenCLIPEncoder:
             [self.encode_image_path(path) for path in image_file_paths], dim=0
         )
 
-        text_features = self.encode_text([prompt])
+        text_features = self.encode_text(prompt)
         relevance_probs = self.predict(image_features=image_features, text_features=text_features)[0]
         top_indices = torch.argsort(relevance_probs, descending=True)[:num_top_images]
 

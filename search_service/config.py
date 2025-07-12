@@ -1,7 +1,10 @@
 import logging
+import os
+
 
 class Config:
-    OUTPUT_DIR = 'D:\\ShowMeThat\\ShowMeThat\\search_service\\frames'
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    OUTPUT_DIR = os.path.join(BASE_DIR, 'frames')
     TARGET_FORMAT_NOTE = '360p'
     MS_IN_SECOND = 1000
     IMAGE_FORMATS = ('.jpg', '.jpeg', '.png')
