@@ -43,7 +43,6 @@ def save_frames_from_video(
             return None
 
         video_capture = cv2.VideoCapture(video_stream_url)
-
         total_frames = video_capture.get(cv2.CAP_PROP_FRAME_COUNT)
         fps = int(video_capture.get(cv2.CAP_PROP_FPS))
         duration_ms = total_frames * Config.MS_IN_SECOND / fps # in milliseconds
@@ -53,20 +52,19 @@ def save_frames_from_video(
         list_image_paths = []
 
         while video_capture.isOpened() or current_time_ms < duration_ms:
-
             video_capture.set(cv2.CAP_PROP_POS_MSEC, current_time_ms)
             read_success, current_frame = video_capture.read()
-
             if not read_success or current_frame is None:
                 logger.warning(
                     f'Failed to read frame at {current_time_ms / Config.MS_IN_SECOND:.3f}s.'
                 )
                 break
-
             frame_index += 1
-
             filename = f"frame_{frame_index}_{video_id}&t={round(current_time_ms / Config.MS_IN_SECOND)}s.jpg"
             filepath = os.path.join(Config.OUTPUT_DIR, filename)
+
+            logger.info(f'filename: {filename}, filepath: {filepath}')
+
             list_image_paths.append(filepath)
             cv2.imwrite(filepath, current_frame)
             current_time_ms += frame_interval_sec * Config.MS_IN_SECOND # in milliseconds
