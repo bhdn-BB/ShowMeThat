@@ -4,40 +4,37 @@ from typing import List
 import numpy as np
 import torch
 from PIL import Image
-import open_clip
+from sklearn.metrics import euclidean_distances
+from transformers import CLIPModel, CLIPTokenizer, CLIPImageProcessor
 from PIL.ImageFile import ImageFile
 from pydantic import HttpUrl
 from tqdm import tqdm
 from search_service.config import Config
 from search_service.scripts.video_processing import save_frames_from_video, build_youtube_link_from_filename
 
-
 logger = Config.get_logger(__name__)
 
+
 class OpenCLIPEncoder:
-    def __init__(self, model_name='ViT-B-32', pretrained='laion2b_s34b_b79k'):
-        self.model, _, self.preprocess = open_clip.create_model_and_transforms(
-            model_name,
-            pretrained=pretrained,
-            precision="fp32"
-        )
+    def __init__(self, model_name='openai/clip-vit-base-patch32'):
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        self.model.to(self.device)
-        self.tokenizer = open_clip.get_tokenizer(model_name)
+        self.model = CLIPModel.from_pretrained(model_name).to(self.device)
+        self.tokenizer = CLIPTokenizer.from_pretrained(model_name)
+        self.image_processor = CLIPImageProcessor.from_pretrained(model_name)
         self.model.eval()
 
     def encode_image_path(self, image_path: str) -> torch.Tensor:
-        image = self.preprocess(Image.open(image_path)).unsqueeze(0).to(self.device)
-        with torch.no_grad(), torch.autocast(self.device.type, enabled=False):
-            image_features = self.model.encode_image(image)
+        image = Image.open(image_path).convert("RGB")
+        inputs = self.image_processor(images=image, return_tensors="pt").to(self.device)
+        with torch.no_grad():
+            image_features = self.model.get_image_features(**inputs)
             image_features /= image_features.norm(dim=-1, keepdim=True)
         return image_features
 
     def encode_text(self, text: str) -> torch.Tensor:
-        prompt = f"a photo of {text}"
-        tokens = self.tokenizer(prompt).to(self.device)
-        with torch.no_grad(), torch.autocast(self.device.type):
-            text_features = self.model.encode_text(tokens)
+        inputs = self.tokenizer(text, return_tensors="pt", padding=True).to(self.device)
+        with torch.no_grad():
+            text_features = self.model.get_text_features(**inputs)
             text_features /= text_features.norm(dim=-1, keepdim=True)
         return text_features
 
@@ -53,12 +50,10 @@ class OpenCLIPEncoder:
         logger.info(f'Created clean folder: {Config.OUTPUT_DIR}')
 
         image_paths = []
-
         for url in video_urls:
             logger.info(f"Saving frames from url: {url} (type {type(url)})")
             current_path = save_frames_from_video(url, frame_interval_sec)
             image_paths.extend(current_path)
-
 
         embedded_frames = []
         logger.info('Encoding extracted images into embeddings...')
@@ -79,9 +74,24 @@ class OpenCLIPEncoder:
             return None
 
     def predict(self, image_features, text_features):
-        with torch.no_grad(), torch.autocast(self.device.type, enabled=True):
-            logits = 100.0 * image_features @ text_features.T
-            return logits.squeeze()
+        logits = 100.0 * image_features @ text_features.T
+        return logits.squeeze()
+
+    def predict_euclidean(self, image_features, text_features):
+        distances = euclidean_distances(text_features.reshape(1, -1), image_features)
+        distances = torch.Tensor(distances)
+        return distances[0]
+
+    def predict_complex(
+            self,
+            image_features: torch.Tensor,
+            text_features: torch.Tensor
+    ) -> torch.Tensor:
+        with torch.no_grad():
+            cosine = self.predict(image_features, text_features)
+            diff = self.predict_euclidean(image_features, text_features)
+            scores = cosine + diff
+        return scores
 
     def get_best_images_by_score(
             self,
@@ -93,10 +103,9 @@ class OpenCLIPEncoder:
         image_features = np.load('embedded_frames.npy')
         image_features = torch.from_numpy(image_features).to(self.device)
         text_features = self.encode_text(prompt).to(self.device)
-        relevance_probs = self.predict(image_features=image_features, text_features=text_features)
+        relevance_probs = self.predict_complex(image_features, text_features)
+        # relevance_probs = torch.from_numpy(relevance_probs).to(self.device)
         top_indices = torch.argsort(relevance_probs, descending=True)[:num_top_images]
-        # print(f'top_indices = {top_indices},\n\n'
-        #       f'relevance_probs = {relevance_probs}')
 
         best_images = []
         youtube_links = []
@@ -111,4 +120,5 @@ class OpenCLIPEncoder:
                 youtube_links.append(link)
             except Exception as e:
                 logger.warning(f"Failed to process image '{image_path}': {e}")
+
         return best_images, youtube_links
