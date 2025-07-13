@@ -14,6 +14,7 @@ from search_service.scripts.video_processing import save_frames_from_video, buil
 logger = Config.get_logger(__name__)
 
 class OpenCLIPEncoder:
+
     def __init__(self, model_name='ViT-B-32', pretrained='laion2b_s34b_b79k'):
         self.model, _, self.preprocess = open_clip.create_model_and_transforms(model_name, pretrained=pretrained)
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -38,21 +39,19 @@ class OpenCLIPEncoder:
 
     def extract_and_encode_frames(
             self,
-            video_urls: List[HttpUrl] | HttpUrl,
+            video_urls: List[str],
             frame_interval_sec: int
-    ) -> None:
+    ) -> list[list[str] | None] | None:
 
         if os.path.exists(Config.OUTPUT_DIR):
             shutil.rmtree(Config.OUTPUT_DIR)
         os.makedirs(Config.OUTPUT_DIR)
         logger.info(f'Created clean folder: {Config.OUTPUT_DIR}')
 
-        video_urls = [str(url) for url in video_urls]
-
+        image_paths = []
         for url in video_urls:
             logger.info(f"Saving frames from url: {url} (type {type(url)})")
-            save_frames_from_video(url, frame_interval_sec)
-
+            image_paths.append(save_frames_from_video(url, frame_interval_sec))
         embedded_frames = []
 
         logger.info('Encoding extracted images into embeddings...')
@@ -66,8 +65,12 @@ class OpenCLIPEncoder:
             stacked_embeddings = np.vstack(embedded_frames)
             np.save('embedded_frames.npy', stacked_embeddings)
             logger.info('Saved image embeddings to embedded_frames.npy')
+            return image_paths
         else:
             logger.warning('No embeddings were generated.')
+            return None
+
+
 
     @staticmethod
     def predict(image_features, text_features):
@@ -85,10 +88,8 @@ class OpenCLIPEncoder:
             logger.warning("Empty image file list.")
             return None
 
-        image_features = torch.cat(
-            [self.encode_image_path(path) for path in image_file_paths], dim=0
-        )
-
+        image_features = np.load('embedded_frames.npy')
+        image_features = torch.FloatTensor(image_features)
         text_features = self.encode_text(prompt)
         relevance_probs = self.predict(image_features=image_features, text_features=text_features)[0]
         top_indices = torch.argsort(relevance_probs, descending=True)[:num_top_images]
@@ -96,8 +97,8 @@ class OpenCLIPEncoder:
         best_images = []
         youtube_links = []
 
-        for idx in top_indices:
-            image_path = image_file_paths[idx]
+        for i in top_indices:
+            image_path = image_file_paths[i]
             try:
                 image = Image.open(image_path)
                 best_images.append(image)

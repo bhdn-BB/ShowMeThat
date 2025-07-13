@@ -14,17 +14,13 @@ def search_frames(request: SearchByTextPrompt):
 
     frame_interval_sec = 11 - request.quality_processed
 
-    encoder.extract_and_encode_frames(
+    image_files_path = encoder.extract_and_encode_frames(
         video_urls=request.video_links,
         frame_interval_sec=frame_interval_sec
     )
 
-    image_files = [os.path.join(Config.OUTPUT_DIR, image_path)
-                   for image_path in os.listdir(Config.OUTPUT_DIR)
-                   if image_path.endswith(tuple(Config.IMAGE_FORMATS))]
-
     best_images, youtube_links = encoder.get_best_images_by_score(
-        image_file_paths=image_files,
+        image_file_paths=image_files_path,
         prompt=request.prompt,
         num_top_images=request.num_slides
     )

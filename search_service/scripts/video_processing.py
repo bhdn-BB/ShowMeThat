@@ -1,7 +1,7 @@
 import os
+from typing import List
 import cv2
 import yt_dlp as youtube_dl
-from pydantic import HttpUrl
 
 from search_service.config import Config
 
@@ -12,7 +12,7 @@ def save_frames_from_video(
         video_url: str,
         frame_interval_sec: float | int,
         quality: str = Config.TARGET_FORMAT_NOTE
-) -> int | None:
+) -> List[str] | None:
 
     logger.info('Extracting video info...')
     try:
@@ -25,7 +25,7 @@ def save_frames_from_video(
 
         if not formats:
             logger.warning('No video formats found.')
-            return 0
+            return None
 
         target_format = None
         for format_item in formats:
@@ -35,12 +35,12 @@ def save_frames_from_video(
 
         if not target_format:
             logger.warning(f'Video format "{quality}" not found.')
-            return 0
+            return None
 
         video_stream_url = target_format.get('url', None)
         if not video_stream_url:
             logger.warning('Stream URL not found.')
-            return 0
+            return None
 
         video_capture = cv2.VideoCapture(video_stream_url)
 
@@ -50,16 +50,12 @@ def save_frames_from_video(
 
         current_time_ms = 0
         frame_index = 0
-
-        # if os.path.exists(ConfigVideoProcessing.OUTPUT_DIR):
-        #     shutil.rmtree(ConfigVideoProcessing.OUTPUT_DIR)
-        # os.makedirs(ConfigVideoProcessing.OUTPUT_DIR)
+        list_image_paths = []
 
         while video_capture.isOpened() or current_time_ms < duration_ms:
 
             video_capture.set(cv2.CAP_PROP_POS_MSEC, current_time_ms)
             read_success, current_frame = video_capture.read()
-
 
             if not read_success or current_frame is None:
                 logger.warning(
@@ -71,17 +67,15 @@ def save_frames_from_video(
 
             filename = f"frame_{frame_index}_{video_id}&t={round(current_time_ms / Config.MS_IN_SECOND)}s.jpg"
             filepath = os.path.join(Config.OUTPUT_DIR, filename)
+            list_image_paths.append(filepath)
             cv2.imwrite(filepath, current_frame)
-
             current_time_ms += frame_interval_sec * Config.MS_IN_SECOND # in milliseconds
-
         video_capture.release()
         logger.info(f'Extracted {frame_index} frames.')
-        return frame_index
-
+        return list_image_paths
     except Exception as e:
         logger.error(f'Failed to extract video info: {e}')
-        return 0
+        return None
     finally:
         logger.info('Finished attempting to extract video info.')
 
