@@ -45,19 +45,20 @@ class OpenCLIPEncoder:
             self,
             video_urls: List[HttpUrl] | HttpUrl,
             frame_interval_sec: int
-    ) -> list[list[str] | None] | None:
+    ) -> list[str | None] | None:
 
         if os.path.exists(Config.OUTPUT_DIR):
             shutil.rmtree(Config.OUTPUT_DIR)
         os.makedirs(Config.OUTPUT_DIR)
         logger.info(f'Created clean folder: {Config.OUTPUT_DIR}')
 
-        image_paths = list(list())
+        image_paths = []
 
         for url in video_urls:
             logger.info(f"Saving frames from url: {url} (type {type(url)})")
             current_path = save_frames_from_video(url, frame_interval_sec)
-            image_paths.append(current_path)
+            image_paths.extend(current_path)
+
 
         embedded_frames = []
         logger.info('Encoding extracted images into embeddings...')
@@ -77,31 +78,25 @@ class OpenCLIPEncoder:
             logger.warning('No embeddings were generated.')
             return None
 
-
-    @staticmethod
-    def predict(image_features, text_features):
-        logits = (100.0 * image_features @ text_features.T).softmax(dim=-1)
-        return logits
+    def predict(self, image_features, text_features):
+        with torch.no_grad(), torch.autocast(self.device.type, enabled=True):
+            logits = 100.0 * image_features @ text_features.T
+            return logits.squeeze()
 
     def get_best_images_by_score(
             self,
-            image_file_paths: List[str] | List[List[str]],
+            image_file_paths: List[str],
             prompt: str,
             num_top_images: int
     ) -> tuple[list[ImageFile], list[HttpUrl | None] | HttpUrl] | None:
 
-        if not image_file_paths:
-            logger.warning("Empty image file list.")
-            return None
-
         image_features = np.load('embedded_frames.npy')
-        image_features = torch.from_numpy(image_features).to(self.device).to(torch.bfloat16)
-        text_features = self.encode_text(prompt)
-
-        # if image_features.dtype != text_features.dtype:
-        #     image_features = image_features.to(text_features.dtype)
-        relevance_probs = self.predict(image_features=image_features, text_features=text_features)[0]
+        image_features = torch.from_numpy(image_features).to(self.device)
+        text_features = self.encode_text(prompt).to(self.device)
+        relevance_probs = self.predict(image_features=image_features, text_features=text_features)
         top_indices = torch.argsort(relevance_probs, descending=True)[:num_top_images]
+        # print(f'top_indices = {top_indices},\n\n'
+        #       f'relevance_probs = {relevance_probs}')
 
         best_images = []
         youtube_links = []
